@@ -34,7 +34,7 @@ def generate_description(product_name):
                 "content": f"generate a description with specification for a product {product_name} in 10-15 words",
             }
         ],
-        model="gpt-4o-mini",
+        model="gpt-3.5-turbo",
         max_tokens=60,
         temperature=0.7,
     )
@@ -48,7 +48,7 @@ def generate_description_productname(subcategory, Supplier_name):
                 "content": f"every time generate only one product name for a subcategory {subcategory} and Supplier name {Supplier_name}\n *strictly Give just the product name in your response*",
             }
         ],
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         max_tokens=60,
         temperature=0.2,
     )
@@ -65,7 +65,7 @@ def generate_description_suppname(subcategory, total_requested):
                 "content": f"Generate supplier names for category {subcategory}. Provide {unique_suppliers} unique supplier names with each name repeated {repetitions} times in a balanced way. Strictly give just the supplier names in your response."
             }
         ],
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         max_tokens=60,
         temperature=0.2,
     )
