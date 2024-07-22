@@ -9,7 +9,6 @@ from io import BytesIO
 from zipfile import ZipFile
 import base64
 import re
-import os
 from dotenv import load_dotenv
 load_dotenv()
 # Initialize Faker
@@ -25,7 +24,7 @@ columns = ['Supplier Name', 'Supplier ID', 'Product Name', 'Product ID', 'Catego
            'Sustainability_rating', 'Financial_health_score', 'Quality_inspection', 
            'form_id', 'form_description']
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
+
 client = OpenAI(
     api_key = OPENAI_API_KEY
 )
