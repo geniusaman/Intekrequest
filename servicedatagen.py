@@ -24,9 +24,9 @@ columns = ['Supplier Name', 'Supplier ID', 'Product Name', 'Product ID', 'Catego
            'Sustainability_rating', 'Financial_health_score', 'Quality_inspection', 
            'form_id', 'form_description']
 
-
+api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 client = OpenAI(
-    api_key = OPENAI_API_KEY
+    api_key = api_key
 )
 
 # Function to generate product description using GPT-3.5
