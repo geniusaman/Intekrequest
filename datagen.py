@@ -21,11 +21,10 @@ columns = ['Supplier Name', 'Supplier ID', 'Product Name', 'Product ID', 'Catego
            'GL Account ID', 'User Name', 'Minority_supplier_certificate',
            'Sustainability_rating', 'Financial_health_score', 'Quality_inspection']
 
-# Set your OpenAI API key
+api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 client = OpenAI(
-    api_key='',
+    api_key = api_key
 )
-
 # Function to generate product description using GPT-3.5
 def generate_description(product_name):
     chat_completion = client.chat.completions.create(
