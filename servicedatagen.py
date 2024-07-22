@@ -127,7 +127,7 @@ def generate_random_data(category, subcategory, cost_center, gl_account_id, curr
         goods_receipt_date = delivery_date + pd.Timedelta(days=np.random.randint(0, 4))  # Max 3 days after invoice_date
         invoice_date = goods_receipt_date + pd.Timedelta(days=np.random.randint(0, 4))
 
-        form_id = f"F_{category[:3]}-{subcategory[:4]}-{currency}_{supplier_name[:3]}"
+        form_id = f"F_{subcategory}_{currency}_{supplier_name}"
         form_description = f"Use this form for {subcategory} related activities."
 
         user_name = fake.name()
