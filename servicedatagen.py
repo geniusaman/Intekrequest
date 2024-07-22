@@ -24,7 +24,7 @@ columns = ['Supplier Name', 'Supplier ID', 'Product Name', 'Product ID', 'Catego
 
 # Set your OpenAI API key
 client = OpenAI(
-    api_key=''
+    api_key='sk-proj-FKtTIkSIPsXuK3gHbpmFT3BlbkFJBVfclmSCoyZF7PtKbIqo'
 )
 
 # Function to generate product description using GPT-3.5
