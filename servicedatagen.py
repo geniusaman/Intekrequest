@@ -9,6 +9,7 @@ from io import BytesIO
 from zipfile import ZipFile
 import base64
 import re
+import os
 from dotenv import load_dotenv
 load_dotenv()
 # Initialize Faker
@@ -117,17 +118,25 @@ def generate_random_data(category, subcategory, cost_center, gl_account_id, curr
         po_number = fake.unique.bothify(text='PO####')
         quantity = np.nan
         unit_price = np.nan
-        avg_cost_per_hour = np.random.uniform(10, 100) if np.random.rand() > 0.5 else np.nan
-        hours_worked = np.random.uniform(1, 50) if np.random.rand() > 0.5 else np.nan
-        fixed_cost = np.random.uniform(100, 1000) if np.random.rand() <= 0.5 else np.nan
-        po_amount = np.nan if fixed_cost else round(unit_price * quantity, 2)
+        if np.random.rand() > 0.5:
+            avg_cost_per_hour = np.random.uniform(210, 240)
+            hours_worked = np.random.randint(200, 250)
+            fixed_cost = np.nan
+            po_amount = round(avg_cost_per_hour * hours_worked, 2)
+        else:
+            avg_cost_per_hour = np.nan
+            hours_worked = np.nan
+            fixed_cost = np.random.randint(10000, 25000)
+            multiplier = np.random.randint(1, 6)  # Range from 1 to 5 inclusive
+            po_amount = round(fixed_cost * multiplier, 2)
+
         invoice_amount = po_amount
         po_date = fake.date_between(start_date='-1y', end_date='today')
         delivery_date = po_date + pd.Timedelta(days=np.random.randint(5, 16))
         goods_receipt_date = delivery_date + pd.Timedelta(days=np.random.randint(0, 4))  # Max 3 days after invoice_date
         invoice_date = goods_receipt_date + pd.Timedelta(days=np.random.randint(0, 4))
 
-        form_id = f"F_{subcategory}_{currency}_{supplier_name}"
+        form_id = f"F_{subcategory}_{currency}_{clean_supplier_name(supplier_name)}"
         form_description = f"Use this form for {subcategory} related activities."
 
         user_name = fake.name()
@@ -161,7 +170,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-logo_base64 = get_base64_image("Easework logo.png")
+logo_base64 = get_base64_image("D:\\AI_team\\Sql_bot\\Easework logo.png")
 emoji_base64 = get_base64_image("emoji.png")
 
 # Add logo and style it
@@ -219,7 +228,7 @@ if 'dataframes' not in st.session_state:
 with st.form("input_form"):
     cost_center = st.text_input("Cost Center", value='CC83')
     gl_account_id = st.text_input("GL Account ID", value='GL3338')
-    subcategory = st.text_input("Subcategory", value='Cyber security')
+    subcategory = st.text_input("Subcategory", value='ITC-001-B: Cybersecurity')
     currency = st.text_input("Currency", value='USD')
     category = st.text_input("Category", value='IT Consulting Services')
     no_rows = st.number_input("Number of Rows", min_value=1, value=50)
@@ -227,46 +236,92 @@ with st.form("input_form"):
     submit_button = st.form_submit_button(label="Generate CSV")
 
 
+def calculate_quality_score(df):
+    # Encode 'Quality_inspection' column: 'pass' -> 1, 'fail' -> 0
+    df['Quality_inspection_encoded'] = df['Quality_inspection'].apply(lambda x: 1 if x == 'pass' else 0)
+    
+    # Group by 'Supplier Name' and calculate the average of 'Quality_inspection_encoded'
+    quality_scores = df.groupby('Supplier Name')['Quality_inspection_encoded'].mean()
+    
+    # Multiply the average quality score by 5
+    quality_scores *= 5
+    
+    # Merge the quality scores back into the original DataFrame
+    df = df.merge(quality_scores.reset_index(name='Quality_Score'), on='Supplier Name', how='left')
+    
+    # Drop the temporary encoded column
+    df.drop(columns=['Quality_inspection_encoded'], inplace=True)
+    
+    return df
+
+def calculate_ontime_delivery_score(df):
+    # Ensure date columns are in datetime format
+    df['Delivery Date'] = pd.to_datetime(df['Delivery Date'])
+    df['Goods Receipt Date'] = pd.to_datetime(df['Goods Receipt Date'])
+    
+    # Calculate the difference in days between Delivery Date and Goods Receipt Date
+    df['Days_Difference'] = (df['Goods Receipt Date'] - df['Delivery Date']).dt.days
+    
+    # Group by 'Supplier Name' and calculate the average of 'Days_Difference'
+    avg_days_difference = df.groupby('Supplier Name')['Days_Difference'].mean()
+    
+    # Calculate the On-Time Delivery Score by subtracting the average difference from 5
+    ontime_delivery_score = 5 - avg_days_difference
+    
+    # Merge the On-Time Delivery Score back into the original DataFrame
+    df = df.merge(ontime_delivery_score.reset_index(name='On_Time_Delivery_Score'), on='Supplier Name', how='left')
+    
+    # Drop the temporary column
+    df.drop(columns=['Days_Difference'], inplace=True)
+    
+    return df
+
+# Example usage within your existing Streamlit application
 if submit_button:
     with st.spinner("⚙️Preparing Data..."):
-        # Clear previous dataframes if any
         st.session_state.dataframes.clear()
         
         for i in range(no_files):
             df = generate_random_data(category, subcategory, cost_center, gl_account_id, currency, no_rows)
-            # Clean supplier names
             df['Supplier Name'] = df['Supplier Name'].apply(clean_supplier_name)
+            # Calculate and include the quality score
+            df = calculate_quality_score(df)
+            # Calculate and include the on-time delivery score
+            df = calculate_ontime_delivery_score(df)
             st.session_state.dataframes.append(df)
             st.progress((i + 1) / no_files)
 
     if 'dataframes' in st.session_state and st.session_state.dataframes:
         if len(st.session_state.dataframes) == 1:
-            # Direct download for a single CSV file
             df = st.session_state.dataframes[0]
+            # Save the updated DataFrame to CSV
             csv_buffer = BytesIO()
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
             st.download_button(
                 label="Download CSV File",
                 data=csv_buffer,
-                file_name=f"{category}_data.csv",
+                file_name=f"{category}_data_with_scores.csv",
                 mime='text/csv',
                 key="single_csv_download"
             )
         else:
-            # Create a zip file in memory for multiple CSV files
             zip_buffer = BytesIO()
             with ZipFile(zip_buffer, 'w') as zf:
                 for idx, df in enumerate(st.session_state.dataframes):
+                    # Calculate and include the quality score and on-time delivery score
+                    df = calculate_quality_score(df)
+                    df = calculate_ontime_delivery_score(df)
                     csv_buffer = BytesIO()
                     df.to_csv(csv_buffer, index=False)
                     csv_buffer.seek(0)
-                    zf.writestr(f"{category}_data_{idx+1}.csv", csv_buffer.getvalue())
+                    zf.writestr(f"{category}_data_with_scores_{idx+1}.csv", csv_buffer.getvalue())
+                    
             zip_buffer.seek(0)
             st.download_button(
                 label="Download All CSV Files as ZIP",
                 data=zip_buffer,
-                file_name=f"{category}_data_files.zip",
+                file_name=f"{category}_data_files_with_scores.zip",
                 mime='application/zip',
                 key="zip_download"
             )
