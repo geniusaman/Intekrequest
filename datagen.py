@@ -220,25 +220,72 @@ with st.form("input_form"):
     no_files = st.number_input("Number of Files", min_value=1, value=1)
     submit_button = st.form_submit_button(label="Generate CSV")
 
+def calculate_quality_score(df):
+    # Encode 'Quality_inspection' column: 'pass' -> 1, 'fail' -> 0
+    df['Quality_inspection_encoded'] = df['Quality_inspection'].apply(lambda x: 1 if x == 'pass' else 0)
+    
+    # Group by 'Supplier Name' and calculate the average of 'Quality_inspection_encoded'
+    quality_scores = df.groupby('Supplier Name')['Quality_inspection_encoded'].mean()
+    
+    # Multiply the average quality score by 5
+    quality_scores *= 5
+    
+    # Merge the quality scores back into the original DataFrame
+    df = df.merge(quality_scores.reset_index(name='Quality_Score'), on='Supplier Name', how='left')
+    
+    # Drop the temporary encoded column
+    df.drop(columns=['Quality_inspection_encoded'], inplace=True)
+    
+    return df
+
+def calculate_ontime_delivery_score(df):
+    # Ensure date columns are in datetime format
+    df['Delivery Date'] = pd.to_datetime(df['Delivery Date'])
+    df['Goods Receipt Date'] = pd.to_datetime(df['Goods Receipt Date'])
+    
+    # Calculate the difference in days between Delivery Date and Goods Receipt Date
+    df['Days_Difference'] = (df['Goods Receipt Date'] - df['Delivery Date']).dt.days
+    
+    # Group by 'Supplier Name' and calculate the average of 'Days_Difference'
+    avg_days_difference = df.groupby('Supplier Name')['Days_Difference'].mean()
+    
+    # Calculate the On-Time Delivery Score by subtracting the average difference from 5
+    ontime_delivery_score = 5 - avg_days_difference
+    
+    # Merge the On-Time Delivery Score back into the original DataFrame
+    df = df.merge(ontime_delivery_score.reset_index(name='On_Time_Delivery_Score'), on='Supplier Name', how='left')
+    
+    # Drop the temporary column
+    df.drop(columns=['Days_Difference'], inplace=True)
+    
+    return df
+
+# Example usage within your existing Streamlit application
 if submit_button:
     with st.spinner("⚙️Preparing Data..."):
+        st.session_state.dataframes.clear()
+        
         for i in range(no_files):
             df = generate_random_data(category, subcategory, cost_center, gl_account_id, currency, no_rows)
-            # Clean supplier names
             df['Supplier Name'] = df['Supplier Name'].apply(clean_supplier_name)
+            # Calculate and include the quality score
+            df = calculate_quality_score(df)
+            # Calculate and include the on-time delivery score
+            df = calculate_ontime_delivery_score(df)
             st.session_state.dataframes.append(df)
             st.progress((i + 1) / no_files)
 
     if 'dataframes' in st.session_state and st.session_state.dataframes:
         if len(st.session_state.dataframes) == 1:
             df = st.session_state.dataframes[0]
+            # Save the updated DataFrame to CSV
             csv_buffer = BytesIO()
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
             st.download_button(
                 label="Download CSV File",
                 data=csv_buffer,
-                file_name=f"{category}_data.csv",
+                file_name=f"{category}_data_with_scores.csv",
                 mime='text/csv',
                 key="single_csv_download"
             )
@@ -246,15 +293,19 @@ if submit_button:
             zip_buffer = BytesIO()
             with ZipFile(zip_buffer, 'w') as zf:
                 for idx, df in enumerate(st.session_state.dataframes):
+                    # Calculate and include the quality score and on-time delivery score
+                    df = calculate_quality_score(df)
+                    df = calculate_ontime_delivery_score(df)
                     csv_buffer = BytesIO()
                     df.to_csv(csv_buffer, index=False)
                     csv_buffer.seek(0)
-                    zf.writestr(f"{category}_data_{idx+1}.csv", csv_buffer.getvalue())
+                    zf.writestr(f"{category}_data_with_scores_{idx+1}.csv", csv_buffer.getvalue())
+                    
             zip_buffer.seek(0)
             st.download_button(
                 label="Download All CSV Files as ZIP",
                 data=zip_buffer,
-                file_name=f"{category}_data_files.zip",
+                file_name=f"{category}_data_files_with_scores.zip",
                 mime='application/zip',
                 key="zip_download"
             )
