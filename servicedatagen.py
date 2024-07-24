@@ -20,23 +20,58 @@ columns = ['Supplier Name', 'Supplier ID', 'Product Name', 'Product ID', 'Catego
            'Subcategory', 'Description', 'Specification', 'Catalog ID', 'Contract ID',
            'PO Number', 'Unit Price', 'Quantity', 'Avg Cost per Hour', 'Hours Worked',
            'Fixed Cost', 'PO Amount', 'Invoice Amount', 'Currency', 'PO Date',
-           'Invoice Date', 'Delivery Date', 'Goods Receipt Date', 'Cost Center',
+           'Invoice Date', 'Delivery Date', 'Goods Receipt Date', 'Department', 'Cost Center',
            'GL Account ID', 'User Name', 'Minority_supplier_certificate',
            'Sustainability_rating', 'Financial_health_score', 'Quality_inspection', 
            'form_id', 'form_description']
 
-api_key = st.secrets["openai"]["OPENAI_API_KEY"]
-client = OpenAI(
-    api_key = api_key
-)
+cloud_migration_services = [
+    "Cloud Readiness Assessment",
+    "Cloud Strategy and Planning",
+    "Cloud Infrastructure Setup",
+    "Data Migration Services",
+    "Application Migration Services",
+    "Database Migration Services",
+    "Security and Compliance Services",
+    "Cloud Integration Services",
+    "Cloud Governance and Management",
+    "Cloud Training and Support",
+    "Disaster Recovery Planning",
+    "Cloud Optimization and Cost Management",
+    "DevOps and CI/CD Implementation",
+    "Managed Cloud Services",
+    "Hybrid Cloud Solutions",
+    "Cloud Backup Solutions",
+    "Cloud Analytics and Reporting",
+    "API Management and Integration",
+    "Identity and Access Management",
+    "Serverless Architecture Implementation"
+]
 
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# api_key = st.secrets["openai"]["OPENAI_API_KEY"]
+# client = OpenAI(
+#     api_key = api_key
+# )
+
+# Define the department to cost center mapping
+department_cost_center_mapping = {
+    'Maintenance': 'CC80',
+    'Finance': 'CC81',
+    'Warehouse': 'CC82',
+    'Marketing': 'CC83',
+    'Assembly': 'CC84',
+    'Production': 'CC85'
+}
 # Function to generate product description using GPT-3.5
-def generate_description(product_name):
+def generate_description(subcategory):
     chat_completion = client.chat.completions.create(
         messages=[
             {
                 "role": "user",
-                "content": f"generate a description with specification for a product {product_name} in 10-15 words",
+                "content": f"provide a single description for {subcategory} which has all following services \n {cloud_migration_services} \n in description include all services.",
             }
         ],
         model="gpt-3.5-turbo",
@@ -45,29 +80,15 @@ def generate_description(product_name):
     )
     return chat_completion.choices[0].message.content.strip()
 
-def generate_description_productname(subcategory, Supplier_name):
-    chat_completion = client.chat.completions.create(
-        messages=[
-            {
-                "role": "system",
-                "content": f"every time generate only one product name for a subcategory {subcategory} and Supplier name {Supplier_name}\n *strictly Give just the product name in your response*",
-            }
-        ],
-        model="gpt-3.5-turbo",
-        max_tokens=60,
-        temperature=0.2,
-    )
-    return chat_completion.choices[0].message.content.strip()
-
-def generate_description_suppname(subcategory, total_requested):
-    unique_suppliers = total_requested // 5
-    repetitions = 5
+def generate_supplier_names(subcategory, total_requested, country):
+    unique_suppliers = int(total_requested) // 2
+    repetitions = 3
 
     chat_completion = client.chat.completions.create(
         messages=[
             {
                 "role": "system",
-                "content": f"Generate supplier names for category {subcategory}. Provide {unique_suppliers} unique supplier names with each name repeated {repetitions} times in a balanced way. Strictly give just the supplier names in your response."
+                "content": f"Generate supplier names for subcategory {subcategory} from {country} country. Provide {unique_suppliers} unique supplier names with each name repeated {repetitions} times in a balanced way. Strictly give just the supplier names in your response."
             }
         ],
         model="gpt-3.5-turbo",
@@ -80,34 +101,34 @@ def generate_description_suppname(subcategory, total_requested):
 def clean_supplier_name(name):
     return re.sub(r'[^A-Za-z\s]', '', name)
 
-
 # Function to generate random data
-def generate_random_data(category, subcategory, cost_center, gl_account_id, currency, n):
+def generate_random_data(category, subcategory, gl_account_id, currency, country, n):
     data = []
     supplier_ids = {}
-    product_ids = {}
     contract_ids = {}
-
-    supplier_names = generate_description_suppname(subcategory, n)
+    supplier_certificates = {}
+    
+    
+    supplier_names = generate_supplier_names(subcategory, n, country)
     supplier_index = 0
+    description = generate_description(subcategory)
+
     for _ in range(n):
         supplier_name = supplier_names[supplier_index]
         supplier_index = (supplier_index + 1) % len(supplier_names)
+
+        
+        cleaned_supplier_name = clean_supplier_name(supplier_name)
         
         if supplier_name in supplier_ids:
             supplier_id = supplier_ids[supplier_name]
         else:
             supplier_id = fake.unique.bothify(text='SUP###')
             supplier_ids[supplier_name] = supplier_id
-        product_name = generate_description_productname(category, supplier_name)
-        if (supplier_name, product_name) in product_ids:
-            product_id = product_ids[(supplier_name, product_name)]
-        else:
-            product_id = fake.unique.bothify(text='PROD###')
-            product_ids[(supplier_name, product_name)] = product_id
 
-        description = generate_description(product_name)
-        specification = f"Resolution: {np.random.choice(['1200x1200', '2400x1200', '4800x1200'])} dpi, Connectivity: {np.random.choice(['USB', 'Wireless', 'Ethernet'])}"
+        product_name = np.nan
+        product_id = np.nan
+        specification = np.nan
         catalog_id = np.nan
         if supplier_name in contract_ids:
             contract_id = contract_ids[supplier_name]
@@ -136,20 +157,28 @@ def generate_random_data(category, subcategory, cost_center, gl_account_id, curr
         goods_receipt_date = delivery_date + pd.Timedelta(days=np.random.randint(0, 4))  # Max 3 days after invoice_date
         invoice_date = goods_receipt_date + pd.Timedelta(days=np.random.randint(0, 4))
 
-        form_id = f"F_{subcategory}_{currency}_{clean_supplier_name(supplier_name)}"
-        form_description = f"Use this form for {subcategory} related activities."
+        form_id = f"F_{subcategory}_{country}_{clean_supplier_name(supplier_name)}"
+        form_description = description
 
         user_name = fake.name()
-        minority_supplier_certificate = np.random.choice(['yes', 'no'])
+        if cleaned_supplier_name in supplier_certificates:
+            minority_supplier_certificate = supplier_certificates[cleaned_supplier_name]
+        else:
+            minority_supplier_certificate = np.random.choice(['yes', 'no'])
+            supplier_certificates[cleaned_supplier_name] = minority_supplier_certificate
+
         sustainability_rating = round(np.random.uniform(1, 5), 1)  # Float between 1 and 5
         financial_health_score = round(np.random.uniform(1, 5), 1)  # Float between 1 and 5
         quality_inspection = np.random.choice(['pass', 'fail'])
+
+        department = np.random.choice(list(department_cost_center_mapping.keys()))
+        cost_center = department_cost_center_mapping[department]
 
         row = [supplier_name, supplier_id, product_name, product_id, category,
                subcategory, description, specification, catalog_id, contract_id,
                po_number, unit_price, quantity, avg_cost_per_hour, hours_worked,
                fixed_cost, po_amount, invoice_amount, currency, po_date, invoice_date,
-               delivery_date, goods_receipt_date, cost_center, gl_account_id, user_name,
+               delivery_date, goods_receipt_date, department, cost_center, gl_account_id, user_name,
                minority_supplier_certificate, sustainability_rating, financial_health_score,
                quality_inspection, form_id, form_description]
 
@@ -170,7 +199,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-logo_base64 = get_base64_image("Easework logo.png")
+logo_base64 = get_base64_image("D:\\AI_team\\Sql_bot\\Easework logo.png")
 emoji_base64 = get_base64_image("emoji.png")
 
 # Add logo and style it
@@ -226,11 +255,11 @@ if 'dataframes' not in st.session_state:
     st.session_state.dataframes = []
 
 with st.form("input_form"):
-    cost_center = st.text_input("Cost Center", value='CC83')
     gl_account_id = st.text_input("GL Account ID", value='GL3338')
     subcategory = st.text_input("Subcategory", value='ITC-001-B: Cybersecurity')
     currency = st.text_input("Currency", value='USD')
     category = st.text_input("Category", value='IT Consulting Services')
+    country = st.text_input("country", value='US')
     no_rows = st.number_input("Number of Rows", min_value=1, value=50)
     no_files = st.number_input("Number of Files", min_value=1, value=1)
     submit_button = st.form_submit_button(label="Generate CSV")
@@ -282,7 +311,7 @@ if submit_button:
         st.session_state.dataframes.clear()
         
         for i in range(no_files):
-            df = generate_random_data(category, subcategory, cost_center, gl_account_id, currency, no_rows)
+            df = generate_random_data(category, subcategory, gl_account_id, currency, country, no_rows)
             df['Supplier Name'] = df['Supplier Name'].apply(clean_supplier_name)
             # Calculate and include the quality score
             df = calculate_quality_score(df)
@@ -298,10 +327,11 @@ if submit_button:
             csv_buffer = BytesIO()
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
+            st.dataframe(df)
             st.download_button(
                 label="Download CSV File",
                 data=csv_buffer,
-                file_name=f"{category}_data_with_scores.csv",
+                file_name=f"{subcategory[10:]}_data_with_scores.csv",
                 mime='text/csv',
                 key="single_csv_download"
             )
@@ -315,13 +345,13 @@ if submit_button:
                     csv_buffer = BytesIO()
                     df.to_csv(csv_buffer, index=False)
                     csv_buffer.seek(0)
-                    zf.writestr(f"{category}_data_with_scores_{idx+1}.csv", csv_buffer.getvalue())
+                    zf.writestr(f"{subcategory[10:]}_data_with_scores_{idx+1}.csv", csv_buffer.getvalue())
                     
             zip_buffer.seek(0)
             st.download_button(
                 label="Download All CSV Files as ZIP",
                 data=zip_buffer,
-                file_name=f"{category}_data_files_with_scores.zip",
+                file_name=f"{subcategory[10:]}_data_files_with_scores.zip",
                 mime='application/zip',
                 key="zip_download"
             )
