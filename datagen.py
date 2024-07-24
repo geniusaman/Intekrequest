@@ -312,6 +312,7 @@ if submit_button:
             csv_buffer = BytesIO()
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
+            st.dataframe(df)
             st.download_button(
                 label="Download CSV File",
                 data=csv_buffer,
