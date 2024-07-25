@@ -48,13 +48,13 @@ cloud_migration_services = [
     "Serverless Architecture Implementation"
 ]
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] 
+# client = OpenAI(api_key=OPENAI_API_KEY)
 
-# api_key = st.secrets["openai"]["OPENAI_API_KEY"]
-# client = OpenAI(
-#     api_key = api_key
-# )
+api_key = st.secrets["openai"]["OPENAI_API_KEY"]
+client = OpenAI(
+    api_key = api_key
+)
 
 # Define the department to cost center mapping
 department_cost_center_mapping = {
@@ -81,8 +81,8 @@ def generate_description(subcategory):
     return chat_completion.choices[0].message.content.strip()
 
 def generate_supplier_names(subcategory, total_requested, country):
-    unique_suppliers = int(total_requested) // 2
-    repetitions = 3
+    unique_suppliers = int(supplier_id_end) - int(supplier_id_start)
+    repetitions = int(total_requested/(15*(total_requested/100)))
 
     chat_completion = client.chat.completions.create(
         messages=[
