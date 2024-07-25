@@ -8,6 +8,7 @@ from io import BytesIO
 from zipfile import ZipFile
 import base64
 import re
+import os
 
 # Initialize Faker
 fake = Faker()
@@ -25,6 +26,8 @@ api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 client = OpenAI(
     api_key=api_key
 )
+
+
 # Function to generate product description using GPT-3.5
 def generate_description(product_name):
     chat_completion = client.chat.completions.create(
@@ -55,8 +58,8 @@ def generate_description_productname(subcategory, Supplier_name):
     return chat_completion.choices[0].message.content.strip()
 
 def generate_description_suppname(subcategory, total_requested):
-    unique_suppliers = total_requested // 5
-    repetitions = 5
+    unique_suppliers = int(supplier_id_end) - int(supplier_id_start)
+    repetitions = int(total_requested/(15*(total_requested/100)))
 
     chat_completion = client.chat.completions.create(
         messages=[
@@ -86,13 +89,14 @@ department_cost_center_mapping = {
 }
 
 # Function to generate random data
-def generate_random_data(category, subcategory, gl_account_id, currency, n):
+def generate_random_data(category, subcategory, gl_account_id, currency, n, supplier_id_start, supplier_id_end):
     data = []
     supplier_ids = {}
     product_ids = {}
     catalog_ids = {}
     supplier_certificates = {}
-    
+
+    supplier_id_range = iter(range(supplier_id_start, supplier_id_end))
     supplier_names = generate_description_suppname(subcategory, n)
     supplier_index = 0
     
@@ -105,7 +109,7 @@ def generate_random_data(category, subcategory, gl_account_id, currency, n):
         if supplier_name in supplier_ids:
             supplier_id = supplier_ids[supplier_name]
         else:
-            supplier_id = fake.unique.bothify(text='SUP###')
+            supplier_id = f"SUP{next(supplier_id_range):03d}"
             supplier_ids[supplier_name] = supplier_id
 
         product_name = generate_description_productname(subcategory, supplier_name)
@@ -246,6 +250,8 @@ with st.form("data_generation_form"):
     subcategory = st.text_input('Subcategory:')
     gl_account_id = st.text_input('GL Account ID:')
     currency = st.selectbox('Currency:', ['USD', 'EUR', 'GBP', 'INR'], index=0)
+    supplier_id_start = st.number_input("Starting Supplier ID Range:", min_value=0, value=0)
+    supplier_id_end = st.number_input("Ending Supplier ID Range:", min_value=1, value=100)
     no_rows = st.number_input("Number of Rows", min_value=1, value=10)
     no_files = st.number_input("Number of Files", min_value=1, value=1)
     submit_button = st.form_submit_button(label="Generate CSV")
@@ -296,7 +302,7 @@ if submit_button:
         st.session_state.dataframes.clear()
         
         for i in range(no_files):
-            df = generate_random_data(category, subcategory, gl_account_id, currency, no_rows)
+            df = generate_random_data(category, subcategory, gl_account_id, currency, no_rows, supplier_id_start, supplier_id_end)
             df['Supplier Name'] = df['Supplier Name'].apply(clean_supplier_name)
             # Calculate and include the quality score
             df = calculate_quality_score(df)
