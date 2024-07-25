@@ -102,13 +102,13 @@ def clean_supplier_name(name):
     return re.sub(r'[^A-Za-z\s]', '', name)
 
 # Function to generate random data
-def generate_random_data(category, subcategory, gl_account_id, currency, country, n):
+def generate_random_data(category, subcategory, gl_account_id, currency, country, n, supplier_id_start, supplier_id_end):
     data = []
     supplier_ids = {}
     contract_ids = {}
     supplier_certificates = {}
     
-    
+    supplier_id_range = iter(range(supplier_id_start, supplier_id_end))
     supplier_names = generate_supplier_names(subcategory, n, country)
     supplier_index = 0
     description = generate_description(subcategory)
@@ -123,7 +123,7 @@ def generate_random_data(category, subcategory, gl_account_id, currency, country
         if supplier_name in supplier_ids:
             supplier_id = supplier_ids[supplier_name]
         else:
-            supplier_id = fake.unique.bothify(text='SUP###')
+            supplier_id = f"SUP{next(supplier_id_range):03d}"
             supplier_ids[supplier_name] = supplier_id
 
         product_name = np.nan
@@ -260,6 +260,8 @@ with st.form("input_form"):
     currency = st.text_input("Currency", value='USD')
     category = st.text_input("Category", value='IT Consulting Services')
     country = st.text_input("country", value='US')
+    supplier_id_start = st.number_input("Starting Supplier ID Range:", min_value=0, value=0)
+    supplier_id_end = st.number_input("Ending Supplier ID Range:", min_value=1, value=100)
     no_rows = st.number_input("Number of Rows", min_value=1, value=50)
     no_files = st.number_input("Number of Files", min_value=1, value=1)
     submit_button = st.form_submit_button(label="Generate CSV")
@@ -311,7 +313,7 @@ if submit_button:
         st.session_state.dataframes.clear()
         
         for i in range(no_files):
-            df = generate_random_data(category, subcategory, gl_account_id, currency, country, no_rows)
+            df = generate_random_data(category, subcategory, gl_account_id, currency, country, no_rows, supplier_id_start, supplier_id_end)
             df['Supplier Name'] = df['Supplier Name'].apply(clean_supplier_name)
             # Calculate and include the quality score
             df = calculate_quality_score(df)
